@@ -6,8 +6,8 @@
 <meta name="theme-color" content="#0b1522">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Startfenster">
-<title>Startfenster – Flugwetter für Drohnen</title>
+<meta name="apple-mobile-web-app-title" content="UAV Flugwetter">
+<title>UAV Flugwetter</title>
 <style>
 :root{
   --bg:#0b1522; --surface:#122033; --surface2:#182b42; --line:#243a55;
@@ -131,7 +131,7 @@ nav svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7;st
 <body>
 <div class="app">
   <header>
-    <div class="brand"><h1>Startfenster</h1><small>Flugwetter für Drohnen</small><small id="ver" class="ver"></small></div>
+    <div class="brand"><h1>UAV Flugwetter</h1><small>Wetterfenster für Drohnenflüge</small><small id="ver" class="ver"></small></div>
     <button class="chip" id="locBtn" aria-label="Ort wählen"><svg class="arr" viewBox="0 0 12 12" style="width:14px;height:14px"><path d="M6 11C3 7.5 2.5 6.5 2.5 5a3.5 3.5 0 0 1 7 0c0 1.5-.5 2.5-3.5 6z"/><circle cx="6" cy="5" r="1.2"/></svg><span id="locName">…</span></button>
     <button class="iconbtn" id="refBtn" aria-label="Aktualisieren"><svg class="arr" viewBox="0 0 12 12" style="width:18px;height:18px;margin:0"><path d="M10 6a4 4 0 1 1-1.2-2.8M10 1.5V4H7.5"/></svg></button>
   </header>
@@ -166,7 +166,7 @@ nav svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7;st
 <script>
 'use strict';
 /* ---------- Version und Datenalter ---------- */
-const APP_VERSION='1.6', APP_DATE='19.11.2026';
+const APP_VERSION='1.7', APP_DATE='19.11.2026';
 const STALE_MS=2*3600e3;          // Daten älter als 2 Stunden gelten als veraltet
 const RETRY_MS=5*60e3;            // nach einem Versuch frühestens nach 5 Minuten erneut
 /* ---------- Helfer ---------- */
@@ -432,7 +432,7 @@ function kpWord(v){return v==null?'':v<4?'ruhig':v<5?'aktiv':'Sturm';}
 function renderAll(o={}){
   $('#locName').textContent=S.loc.name;
   $('#ver').textContent=`v${APP_VERSION} · ${S.source==='demo'?'Demo-Daten':'Stand '+stand()+' Uhr'}`;
-  $('#verFoot').textContent=`Startfenster Version ${APP_VERSION} vom ${APP_DATE} · Daten ${S.source==='demo'?'(Demo)':'von '+stand()+' Uhr'}, werden nach 2 Stunden beim Öffnen automatisch erneuert.`;
+  $('#verFoot').textContent=`UAV Flugwetter Version ${APP_VERSION} vom ${APP_DATE} · Daten ${S.source==='demo'?'(Demo)':'von '+stand()+' Uhr'}, werden nach 2 Stunden beim Öffnen automatisch erneuert.`;
   $('#srcLabel').textContent=S.modelUsed==='demo'?'Demo-Daten':modelOf(S.modelUsed).short;
   const b=$('#banner'); b.hidden=!S.note; b.textContent=S.note;
   if(S.loading){ $('#v-forecast').innerHTML='<div class="card">Lade Vorhersage …</div>'; renderSettings(); return; }
