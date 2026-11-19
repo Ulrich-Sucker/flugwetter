@@ -198,7 +198,7 @@ nav svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7;st
 <script>
 'use strict';
 /* ---------- Version und Datenalter ---------- */
-const APP_VERSION='1.9', APP_DATE='19.11.2026';
+const APP_VERSION='1.10', APP_DATE='19.11.2026';
 const STALE_MS=2*3600e3;          // Daten älter als 2 Stunden gelten als veraltet
 const RETRY_MS=5*60e3;            // nach einem Versuch frühestens nach 5 Minuten erneut
 /* ---------- Helfer ---------- */
@@ -214,7 +214,7 @@ const nf=(v,d=0)=>{ if(v==null||!isFinite(v)) return '–'; let r=Number(Number(
 /* ---------- Einstellungen ---------- */
 const UNITS={ms:{label:'m/s',f:1,d:1},kmh:{label:'km/h',f:3.6,d:0},mph:{label:'mph',f:2.23694,d:0},kn:{label:'kn',f:1.94384,d:0}};
 const DEFAULTS={unit:'ms',view:'day',buf:{pct:80,temp:3,spread:1.5},lim:{
-  wind:{on:true,v:8},gust:{on:true,v:11},pop:{on:true,v:30},vis:{on:true,v:3},
+  wind:{on:true,v:8},gust:{on:true,v:11},pop:{on:true,v:30},mm:{on:true,v:0.1},vis:{on:true,v:3},
   tmin:{on:true,v:0},tmax:{on:true,v:40},spread:{on:true,v:2},kp:{on:true,v:5}}};
 function loadSettings(){
   const s=store.get('sf.settings',null), d=JSON.parse(JSON.stringify(DEFAULTS));
@@ -398,6 +398,7 @@ const METRICS={
   wind:{kind:'max',get:h=>h.wind},
   gust:{kind:'max',get:h=>h.gust},
   pop:{kind:'max',get:h=>h.pop},
+  mm:{kind:'max',get:h=>h.precip},
   vis:{kind:'min',get:h=>h.vis},
   tmin:{kind:'min',get:h=>h.temp,buf:'temp'},
   tmax:{kind:'max',get:h=>h.temp,buf:'temp'},
@@ -427,6 +428,7 @@ function reasons(h,e){
   const add=(k,txt)=>{ if(e.per[k]>0) out.push({st:e.per[k],txt}); };
   add('wind',e.per.wind===2?`Wind ${fw(h.wind)} ${u} liegt über dem Limit (${fw(L.wind.v)} ${u})`:`Wind ${fw(h.wind)} ${u} nahe am Limit (${fw(L.wind.v)} ${u})`);
   add('gust',e.per.gust===2?`Böen ${fw(h.gust)} ${u} liegen über dem Limit (${fw(L.gust.v)} ${u})`:`Böen ${fw(h.gust)} ${u} nahe am Limit (${fw(L.gust.v)} ${u})`);
+  add('mm',e.per.mm===2?`Niederschlag ${nf(h.precip,1)} mm pro Stunde erwartet, Limit ${nf(L.mm.v,1)} mm`:`Niederschlag ${nf(h.precip,1)} mm pro Stunde erwartet, knapp am Limit (${nf(L.mm.v,1)} mm)`);
   add('pop',`Regenrisiko ${nf(h.pop)} % (Limit ${nf(L.pop.v)} %)`);
   add('vis',`Sicht ${nf(h.vis,1)} km (Minimum ${nf(L.vis.v,1)} km)`);
   add('tmin',`Temperatur ${nf(h.temp,1)} °C, Minimum ${nf(L.tmin.v)} °C`);
@@ -501,7 +503,7 @@ function renderForecast(){
   const tiles=[
     tile('Wind',fw(h.wind),u,e.per.wind,`${arrow(h.dir)}${dirTxt(h.dir)}`),
     tile('Böen',fw(h.gust),u,e.per.gust,''),
-    tile('Regenrisiko',nf(h.pop),'%',e.per.pop,h.precip>0?`${nf(h.precip,1)} mm`:'trocken'),
+    tile('Regenrisiko',nf(h.pop),'%',(e.per.pop==null&&e.per.mm==null)?null:Math.max(e.per.pop==null?-1:e.per.pop,e.per.mm==null?-1:e.per.mm),h.precip>0?`${nf(h.precip,1)} mm`:'trocken'),
     tile('Sicht',nf(h.vis,1),'km',e.per.vis,''),
     tile('Temperatur',nf(h.temp,1),'°C',tempSt<0?null:tempSt,''),
     tile('Taupunkt',nf(h.dew,1),'°C',e.per.spread,h.temp!=null&&h.dew!=null?`Abstand ${nf(h.temp-h.dew,1)} °C`:''),
@@ -561,7 +563,7 @@ function matrixCard(idxs){
   const n=idxs.length, ts=tickStep(n), fs=n>16?8:n>12?9:11;
   const pick=(i,k)=>{const p=EV[i].per; if(k==='temp'){const a=p.tmin,b=p.tmax; return a==null?b:b==null?a:Math.max(a,b);} return p[k];};
   const L=S.settings.lim;
-  const rowsDef=[['wind','Wind',L.wind.on],['gust','Böen',L.gust.on],['pop','Regenrisiko',L.pop.on],['vis','Sicht',L.vis.on],['temp','Temperatur',L.tmin.on||L.tmax.on],['spread','Taupunkt',L.spread.on],['kp','Kp-Index',L.kp.on]].filter(r=>r[2]);
+  const rowsDef=[['wind','Wind',L.wind.on],['gust','Böen',L.gust.on],['pop','Regenrisiko',L.pop.on],['mm','Niederschlag',L.mm.on],['vis','Sicht',L.vis.on],['temp','Temperatur',L.tmin.on||L.tmax.on],['spread','Taupunkt',L.spread.on],['kp','Kp-Index',L.kp.on]].filter(r=>r[2]);
   const cell=(i,st,label)=>{
     const sel=i===S.sel?' sel':'';
     return st==null?`<button class="mc none${sel}" data-hour="${i}" aria-label="${label}: keine Daten" style="font-size:${fs}px">–</button>`
@@ -785,6 +787,7 @@ function renderSettings(){
       ${row('wind','Wind (10 m)','Gelb knapp vor dem Limit',u.label,wv(L.wind.v),u.d?0.1:1)}
       ${row('gust','Böen','Gelb knapp vor dem Limit',u.label,wv(L.gust.v),u.d?0.1:1)}
       ${row('pop','Regenrisiko','maximal','%',L.pop.v,5)}
+      ${row('mm','Niederschlag (Menge)','maximal pro Stunde, 0,1 = schon leichter Regen zählt','mm',L.mm.v,0.1)}
       ${row('vis','Sicht','mindestens','km',L.vis.v,0.5)}
       ${row('tmin','Temperatur min.','Gelb knapp über dem Minimum','°C',L.tmin.v,1)}
       ${row('tmax','Temperatur max.','Gelb knapp unter dem Maximum','°C',L.tmax.v,1)}
