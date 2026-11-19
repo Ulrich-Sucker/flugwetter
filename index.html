@@ -91,7 +91,7 @@ tr.row.night td{color:var(--mute)}
 .set{display:grid;grid-template-columns:1fr auto auto;gap:6px 10px;align-items:center}
 .set label.n{font-size:14px}
 .set small{display:block;color:var(--mute);font-size:11.5px}
-input[type=number],select,input[type=search]{font:inherit;color:var(--ink);background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;min-height:40px}
+input[type=number],input[type=text],select,input[type=search]{font:inherit;color:var(--ink);background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;min-height:40px}
 input[type=number]{width:84px;text-align:right}
 input[type=checkbox]{width:22px;height:22px;accent-color:var(--wind)}
 .unit{color:var(--ink2);font-size:13px;min-width:34px}
@@ -109,6 +109,21 @@ nav svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7;st
 .sheet input[type=search]{width:100%}
 .res{width:100%;text-align:left;padding:11px 4px;border-top:1px solid var(--line)}
 .res small{color:var(--mute)}
+.sh{margin:18px 0 6px;font-size:13px;font-weight:650;color:var(--ink2);letter-spacing:.2px}
+.spot{display:flex;align-items:stretch;border-top:1px solid var(--line)}
+.spot:first-child{border-top:0}
+.spotmain{flex:1;min-width:0;text-align:left;padding:10px 4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.spotmain .chk{width:18px;flex:none;color:var(--good);font-weight:700}
+.spotmain .sn{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.spotmain small{color:var(--mute);flex-basis:100%;padding-left:26px;margin-top:-4px}
+.spot.on .sn{color:var(--ink)}
+.spotact{flex:none;min-width:44px;color:var(--ink2);font-size:15px;border-radius:10px}
+.spotact.ask{color:var(--bad);font-size:12.5px;font-weight:650;min-width:64px}
+.spotedit{flex:1;display:flex;align-items:center;padding:6px 4px}
+.spotedit input{width:100%}
+.saverow{display:flex;gap:8px;margin:10px 0 0}
+.saverow input{flex:1;min-width:0}
+#codeBox{width:100%;margin-top:8px;font:12px/1.35 ui-monospace,Consolas,monospace;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:8px;resize:vertical}
 .chead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px}
 .chead h2{margin:0}
 .card h2.sub{margin:16px 0 6px}
@@ -154,21 +169,36 @@ nav svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7;st
 </nav>
 
 <div id="sheetbg" class="sheetbg" hidden>
-  <div class="sheet" role="dialog" aria-label="Ort wählen">
+  <div class="sheet" role="dialog" aria-label="Startplatz wählen">
+    <div class="chead"><h2>Startplätze</h2><button class="btn" id="closeSheet">Schließen</button></div>
+    <div id="spotList"></div>
+    <div id="saveRow"></div>
+    <div class="sh">Anderen Ort suchen</div>
     <input type="search" id="q" placeholder="Ort suchen, z. B. Hamburg" autocomplete="off">
     <div style="display:flex;gap:8px;margin:10px 0">
       <button class="btn primary" id="geoBtn">Mein Standort</button>
-      <button class="btn" id="closeSheet">Schließen</button>
     </div>
     <div id="sheetMsg" class="note" hidden></div>
     <div id="results"></div>
+    <div class="sh">Auf andere Geräte oder Browser übertragen</div>
+    <div class="note" style="margin:0 0 8px">Der Code enthält alle Startplätze und deine Einstellungen (Grenzwerte, Einheit, Quelle). Auf dem anderen Gerät hier einfügen.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn" id="expBtn">Code erzeugen</button>
+      <button class="btn" id="impBtn">Code einfügen</button>
+    </div>
+    <textarea id="codeBox" rows="4" hidden spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
+    <div id="codeActs" style="display:flex;gap:8px;margin-top:8px" hidden>
+      <button class="btn primary" id="copyBtn" hidden>Kopieren</button>
+      <button class="btn primary" id="impGo" hidden>Übernehmen</button>
+    </div>
+    <div id="codeMsg" class="note" hidden></div>
   </div>
 </div>
 
 <script>
 'use strict';
 /* ---------- Version und Datenalter ---------- */
-const APP_VERSION='1.8', APP_DATE='19.11.2026';
+const APP_VERSION='1.9', APP_DATE='19.11.2026';
 const STALE_MS=2*3600e3;          // Daten älter als 2 Stunden gelten als veraltet
 const RETRY_MS=5*60e3;            // nach einem Versuch frühestens nach 5 Minuten erneut
 /* ---------- Helfer ---------- */
@@ -211,6 +241,7 @@ const S={
   model:modelOf(store.get('sf.model','best_match')).id,modelUsed:'best_match',sun:{},loadedAt:0,lastTry:0,busy:false,
   settings:loadSettings(),
   loc:store.get('sf.loc',{name:'Berlin',lat:52.52,lon:13.41}),
+  spots:[],renId:null,delId:null,
   hours:[],days:[],selDay:null,sel:0,tab:'forecast',source:'',note:'',loading:true
 };
 const U=()=>UNITS[S.settings.unit];
@@ -785,9 +816,68 @@ function setTab(t){
   window.scrollTo(0,0);
 }
 function saveSettings(){store.set('sf.settings',S.settings);}
-function setLoc(l){S.loc=l; store.set('sf.loc',l); closeSheet(); load();}
-function openSheet(){$('#sheetbg').hidden=false; $('#q').value=''; $('#results').innerHTML=''; $('#sheetMsg').hidden=true; setTimeout(()=>$('#q').focus(),50);}
+/* ---------- Startplätze ---------- */
+const MAXSPOTS=50;
+function cleanSpots(arr){
+  const out=[];
+  for(const x of Array.isArray(arr)?arr:[]){
+    if(!x||typeof x.name!=='string'||!isFinite(x.lat)||!isFinite(x.lon)) continue;
+    if(Math.abs(x.lat)>90||Math.abs(x.lon)>180) continue;
+    out.push({id:String(x.id||Math.random().toString(36).slice(2,9)),name:x.name.trim().slice(0,40)||'Startplatz',lat:+(+x.lat).toFixed(4),lon:+(+x.lon).toFixed(4)});
+    if(out.length>=MAXSPOTS) break;
+  }
+  return out;
+}
+S.spots=cleanSpots(store.get('sf.spots',[]));
+const saveSpots=()=>store.set('sf.spots',S.spots);
+const sameLoc=(a,b)=>Math.abs(a.lat-b.lat)<0.0006&&Math.abs(a.lon-b.lon)<0.0006;
+const spotOfLoc=l=>S.spots.find(p=>sameLoc(p,l));
+function setLoc(l){S.loc={name:l.name,lat:l.lat,lon:l.lon}; store.set('sf.loc',S.loc); closeSheet(); load();}
+function renderSheet(){
+  const cur=spotOfLoc(S.loc);
+  $('#spotList').innerHTML=S.spots.length?S.spots.map(p=>{
+    const on=cur&&cur.id===p.id;
+    if(S.renId===p.id) return `<div class="spot"><div class="spotedit"><input type="text" id="renIn" value="${esc(p.name)}" maxlength="40" aria-label="Name des Startplatzes"></div></div>`;
+    return `<div class="spot${on?' on':''}"><button class="spotmain" data-spot="${esc(p.id)}"><span class="chk">${on?'✓':''}</span><span class="sn">${esc(p.name)}</span><small>${nf(p.lat,3)}, ${nf(p.lon,3)}</small></button>`+
+      `<button class="spotact" data-ren="${esc(p.id)}" aria-label="Umbenennen">✎</button>`+
+      (S.delId===p.id?`<button class="spotact ask" data-del="${esc(p.id)}">Löschen?</button>`:`<button class="spotact" data-del="${esc(p.id)}" aria-label="Löschen">✕</button>`)+`</div>`;
+  }).join(''):'<div class="note" style="margin:6px 0">Noch keine Startplätze gespeichert. Such einen Ort oder nimm deinen Standort und speichere ihn hier.</div>';
+  $('#saveRow').innerHTML=cur?'':(S.spots.length>=MAXSPOTS?'<div class="note">Maximal 50 Startplätze.</div>':
+    `<div class="saverow"><input type="text" id="saveName" value="${esc(S.loc.name)}" maxlength="40" aria-label="Name für den aktuellen Ort"><button class="btn primary" id="saveBtn">Aktuellen Ort speichern</button></div>`);
+  if(S.renId){ const i=$('#renIn'); if(i){ i.focus(); i.select(); } }
+}
+function openSheet(){
+  S.renId=null; S.delId=null; renderSheet();
+  $('#sheetbg').hidden=false; $('#q').value=''; $('#results').innerHTML=''; $('#sheetMsg').hidden=true;
+  $('#codeBox').hidden=true; $('#codeActs').hidden=true; $('#codeMsg').hidden=true;
+}
 function closeSheet(){$('#sheetbg').hidden=true;}
+function codeMsg(t){const m=$('#codeMsg'); m.hidden=!t; m.textContent=t||'';}
+const b64enc=str=>btoa(unescape(encodeURIComponent(str)));
+const b64dec=str=>decodeURIComponent(escape(atob(str)));
+function makeCode(){
+  const o={v:1,spots:S.spots.map(p=>[p.name,p.lat,p.lon]),loc:[S.loc.name,S.loc.lat,S.loc.lon],settings:S.settings,model:S.model};
+  return 'UF1.'+b64enc(JSON.stringify(o));
+}
+function importCode(txt){
+  let o;
+  try{
+    const t=String(txt).replace(/\s+/g,'');
+    if(!t.startsWith('UF1.')) throw 0;
+    o=JSON.parse(b64dec(t.slice(4)));
+    if(!o||o.v!==1||!Array.isArray(o.spots)) throw 0;
+  }catch(e){ return 'Der Code ist ungültig. Bitte den ganzen Code einfügen, er beginnt mit UF1.'; }
+  const inc=cleanSpots(o.spots.map(a=>({name:a&&a[0],lat:a&&a[1],lon:a&&a[2]})));
+  let added=0;
+  for(const p of inc){ if(S.spots.length>=MAXSPOTS) break; if(!spotOfLoc(p)){ S.spots.push(p); added++; } }
+  saveSpots();
+  if(o.settings){ store.set('sf.settings',o.settings); S.settings=loadSettings(); }
+  if(o.model&&MODELS.some(m=>m.id===o.model)){ S.model=o.model; store.set('sf.model',S.model); }
+  const l=o.loc&&{name:String(o.loc[0]||'').slice(0,40)||'Startplatz',lat:+o.loc[1],lon:+o.loc[2]};
+  const okLoc=l&&isFinite(l.lat)&&isFinite(l.lon)&&Math.abs(l.lat)<=90&&Math.abs(l.lon)<=180;
+  if(okLoc){ const known=spotOfLoc(l); S.loc={name:known?known.name:l.name,lat:+l.lat.toFixed(4),lon:+l.lon.toFixed(4)}; store.set('sf.loc',S.loc); }
+  return {added};
+}
 
 document.addEventListener('click',e=>{
   const t=e.target.closest('[data-tab],[data-day],[data-hour],[data-goto],[data-res],[data-view]'); if(!t) return;
@@ -824,6 +914,49 @@ $('#refBtn').addEventListener('click',()=>load());
 $('#locBtn').addEventListener('click',openSheet);
 $('#closeSheet').addEventListener('click',closeSheet);
 $('#sheetbg').addEventListener('click',e=>{if(e.target.id==='sheetbg') closeSheet();});
+$('#sheetbg').addEventListener('click',e=>{
+  const t=e.target.closest('[data-spot],[data-ren],[data-del],#saveBtn,#expBtn,#impBtn,#copyBtn,#impGo'); if(!t) return;
+  if(t.dataset.spot){ const p=S.spots.find(x=>x.id===t.dataset.spot); if(p) setLoc(p); }
+  else if(t.dataset.ren){ S.renId=t.dataset.ren; S.delId=null; renderSheet(); }
+  else if(t.dataset.del){
+    if(S.delId===t.dataset.del){ S.spots=S.spots.filter(x=>x.id!==t.dataset.del); S.delId=null; saveSpots(); }
+    else S.delId=t.dataset.del;
+    renderSheet();
+  }
+  else if(t.id==='saveBtn'){
+    const name=($('#saveName').value.trim()||S.loc.name).slice(0,40);
+    S.spots.push({id:Math.random().toString(36).slice(2,9),name,lat:S.loc.lat,lon:S.loc.lon});
+    S.loc.name=name; store.set('sf.loc',S.loc); saveSpots(); $('#locName').textContent=name; renderSheet();
+  }
+  else if(t.id==='expBtn'){
+    const box=$('#codeBox'); box.value=makeCode(); box.readOnly=true; box.hidden=false;
+    $('#codeActs').hidden=false; $('#copyBtn').hidden=false; $('#impGo').hidden=true; codeMsg(''); box.focus(); box.select();
+  }
+  else if(t.id==='impBtn'){
+    const box=$('#codeBox'); box.value=''; box.readOnly=false; box.hidden=false;
+    $('#codeActs').hidden=false; $('#copyBtn').hidden=true; $('#impGo').hidden=false; codeMsg(''); box.focus();
+  }
+  else if(t.id==='copyBtn'){
+    const box=$('#codeBox'); box.select();
+    (navigator.clipboard?navigator.clipboard.writeText(box.value):Promise.reject()).then(()=>codeMsg('Kopiert. Auf dem anderen Gerät „Code einfügen“ wählen.'),()=>codeMsg('Bitte den markierten Code von Hand kopieren.'));
+  }
+  else if(t.id==='impGo'){
+    const r=importCode($('#codeBox').value);
+    if(typeof r==='string'){ codeMsg(r); return; }
+    closeSheet(); renderAll(); load();
+  }
+});
+$('#sheetbg').addEventListener('change',e=>{
+  if(e.target.id==='renIn'){
+    const p=S.spots.find(x=>x.id===S.renId), name=e.target.value.trim().slice(0,40);
+    if(p&&name){ const wasCur=sameLoc(p,S.loc); p.name=name; saveSpots(); if(wasCur){ S.loc.name=name; store.set('sf.loc',S.loc); $('#locName').textContent=name; } }
+    S.renId=null; renderSheet();
+  }
+});
+$('#sheetbg').addEventListener('keydown',e=>{
+  if(e.target.id==='renIn'&&e.key==='Escape'){ S.renId=null; renderSheet(); }
+  if(e.target.id==='saveName'&&e.key==='Enter'){ $('#saveBtn').click(); }
+});
 $('#geoBtn').addEventListener('click',()=>{
   const m=$('#sheetMsg'); m.hidden=false; m.textContent='Standort wird ermittelt …';
   try{
