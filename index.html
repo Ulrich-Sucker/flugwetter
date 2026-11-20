@@ -135,7 +135,8 @@ nav svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7;st
 .srcrow select{flex:1;min-width:0}
 .mx{display:grid;gap:3px;align-items:center}
 .mx .ml{font-size:12.5px;color:var(--ink2);padding-right:4px;white-space:nowrap}
-.mx .ml.tot{font-weight:650;color:var(--ink);border-top:1px solid var(--line);padding-top:4px}
+.mx .ml.tot{font-weight:650;color:var(--ink)}
+.mx .mdiv{grid-column:1/-1;height:1px;background:var(--line);margin:3px 0}
 .mx .mh{font-size:10.5px;color:var(--mute);text-align:center;height:14px}
 .mx .mh.sel{color:var(--ink);font-weight:700}
 .mc{height:24px;border-radius:5px;display:grid;place-items:center;font-weight:700;color:#0b1522;padding:0;min-width:0}
@@ -198,7 +199,7 @@ nav svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7;st
 <script>
 'use strict';
 /* ---------- Version und Datenalter ---------- */
-const APP_VERSION='1.10', APP_DATE='19.11.2026';
+const APP_VERSION='1.11', APP_DATE='19.11.2026';
 const STALE_MS=2*3600e3;          // Daten älter als 2 Stunden gelten als veraltet
 const RETRY_MS=5*60e3;            // nach einem Versuch frühestens nach 5 Minuten erneut
 /* ---------- Helfer ---------- */
@@ -571,11 +572,12 @@ function matrixCard(idxs){
   };
   let g=`<div class="mx" style="grid-template-columns:84px repeat(${n},minmax(0,1fr))"><div></div>`;
   idxs.forEach(i=>{const h=S.hours[i]; g+=`<div class="mh${i===S.sel?' sel':''}">${h.hh%ts===0?String(h.hh).padStart(2,'0'):''}</div>`;});
-  rowsDef.forEach(([k,name])=>{ g+=`<div class="ml">${name}</div>`; idxs.forEach(i=>{ g+=cell(i,pick(i,k),`${name} ${String(S.hours[i].hh).padStart(2,'0')} Uhr`); }); });
   g+=`<div class="ml tot">Gesamt</div>`; idxs.forEach(i=>{ g+=cell(i,EV[i].st,`Gesamt ${String(S.hours[i].hh).padStart(2,'0')} Uhr`); });
+  g+='<div class="mdiv"></div>';
+  rowsDef.forEach(([k,name])=>{ g+=`<div class="ml">${name}</div>`; idxs.forEach(i=>{ g+=cell(i,pick(i,k),`${name} ${String(S.hours[i].hh).padStart(2,'0')} Uhr`); }); });
   g+='</div>';
   return `<div class="card"><h2>Warum diese Bewertung?</h2>${g}
-    <div class="note">Jede Zeile ist ein Kriterium, die Zeile „Gesamt“ zeigt das schlechteste davon. ✓ im grünen Bereich · ! gelb, nahe am Limit · ✕ über dem Limit. Antippen wählt die Stunde.</div></div>`;
+    <div class="note">Jede Zeile ist ein Kriterium, die oberste Zeile „Gesamt“ zeigt das schlechteste davon. ✓ im grünen Bereich · ! gelb, nahe am Limit · ✕ über dem Limit. Antippen wählt die Stunde.</div></div>`;
 }
 function niceStep(r){const p=Math.pow(10,Math.floor(Math.log10(r))), m=r/p; return (m<=1?1:m<=2?2:m<=5?5:10)*p;}
 const CH={W:340,H:200,L:34,R:10,T:14,B:24};
