@@ -30,6 +30,10 @@ header{display:flex;align-items:center;gap:10px;margin-bottom:12px}
 .brand small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .brand .ver{color:var(--ink2)}
 .chip{display:inline-flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:8px 12px;max-width:62%;min-height:40px}
+.spotbar{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 10px;margin:0 -2px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.spotbar::-webkit-scrollbar{display:none}
+.spotbar .chip{flex:none;max-width:none;min-height:36px;padding:6px 12px;color:var(--ink2);font-size:14px;white-space:nowrap}
+.spotbar .chip.on{border-color:var(--wind);color:var(--ink);background:rgba(57,135,229,.16);font-weight:600}
 .chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .iconbtn{width:40px;height:40px;border-radius:50%;background:var(--surface);border:1px solid var(--line);display:grid;place-items:center}
 .banner{background:#2a2410;border:1px solid #5b4a14;color:#f0d78a;border-radius:12px;padding:9px 12px;font-size:13px;margin-bottom:12px}
@@ -153,6 +157,7 @@ nav svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7;st
     <button class="chip" id="locBtn" aria-label="Ort wählen"><svg class="arr" viewBox="0 0 12 12" style="width:14px;height:14px"><path d="M6 11C3 7.5 2.5 6.5 2.5 5a3.5 3.5 0 0 1 7 0c0 1.5-.5 2.5-3.5 6z"/><circle cx="6" cy="5" r="1.2"/></svg><span id="locName">…</span></button>
     <button class="iconbtn" id="refBtn" aria-label="Aktualisieren"><svg class="arr" viewBox="0 0 12 12" style="width:18px;height:18px;margin:0"><path d="M10 6a4 4 0 1 1-1.2-2.8M10 1.5V4H7.5"/></svg></button>
   </header>
+  <div id="spotBar" class="spotbar" hidden></div>
   <div id="banner" class="banner" hidden></div>
 
   <section id="v-forecast"></section>
@@ -199,7 +204,7 @@ nav svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7;st
 <script>
 'use strict';
 /* ---------- Version und Datenalter ---------- */
-const APP_VERSION='1.11', APP_DATE='19.11.2026';
+const APP_VERSION='1.12', APP_DATE='19.11.2026';
 const STALE_MS=2*3600e3;          // Daten älter als 2 Stunden gelten als veraltet
 const RETRY_MS=5*60e3;            // nach einem Versuch frühestens nach 5 Minuten erneut
 /* ---------- Helfer ---------- */
@@ -465,7 +470,16 @@ const icon=st=>st==null?'':`<span class="ic" style="background:${ST[st].c}" aria
 function kpWord(v){return v==null?'':v<4?'ruhig':v<5?'aktiv':'Sturm';}
 
 /* ---------- Rendering ---------- */
+function renderSpotBar(){
+  const bar=$('#spotBar'); if(!bar) return;
+  if(S.spots.length<2){ bar.hidden=true; bar.innerHTML=''; return; }
+  const cur=spotOfLoc(S.loc);
+  bar.innerHTML=S.spots.map(p=>`<button class="chip${cur&&cur.id===p.id?' on':''}" data-qs="${esc(p.id)}"${cur&&cur.id===p.id?' aria-current="true"':''}>${esc(p.name)}</button>`).join('');
+  bar.hidden=false;
+  const on=bar.querySelector('.on'); if(on&&on.scrollIntoView) { try{ bar.scrollLeft=Math.max(0,on.offsetLeft-bar.clientWidth/2+on.offsetWidth/2); }catch(e){} }
+}
 function renderAll(o={}){
+  renderSpotBar();
   $('#locName').textContent=S.loc.name;
   $('#ver').textContent=`v${APP_VERSION} · ${S.source==='demo'?'Demo-Daten':'Stand '+stand()+' Uhr'}`;
   $('#verFoot').textContent=`UAV Flugwetter Version ${APP_VERSION} vom ${APP_DATE} · Daten ${S.source==='demo'?'(Demo)':'von '+stand()+' Uhr'}, werden nach 2 Stunden beim Öffnen automatisch erneuert.`;
@@ -849,6 +863,7 @@ function renderSheet(){
   }).join(''):'<div class="note" style="margin:6px 0">Noch keine Startplätze gespeichert. Such einen Ort oder nimm deinen Standort und speichere ihn hier.</div>';
   $('#saveRow').innerHTML=cur?'':(S.spots.length>=MAXSPOTS?'<div class="note">Maximal 50 Startplätze.</div>':
     `<div class="saverow"><input type="text" id="saveName" value="${esc(S.loc.name)}" maxlength="40" aria-label="Name für den aktuellen Ort"><button class="btn primary" id="saveBtn">Aktuellen Ort speichern</button></div>`);
+  renderSpotBar();
   if(S.renId){ const i=$('#renIn'); if(i){ i.focus(); i.select(); } }
 }
 function openSheet(){
@@ -919,6 +934,7 @@ $('#refBtn').addEventListener('click',()=>load());
 $('#locBtn').addEventListener('click',openSheet);
 $('#closeSheet').addEventListener('click',closeSheet);
 $('#sheetbg').addEventListener('click',e=>{if(e.target.id==='sheetbg') closeSheet();});
+$('#spotBar').addEventListener('click',e=>{const t=e.target.closest('[data-qs]'); if(!t) return; const p=S.spots.find(x=>x.id===t.dataset.qs); if(p&&!sameLoc(p,S.loc)) setLoc(p);});
 $('#sheetbg').addEventListener('click',e=>{
   const t=e.target.closest('[data-spot],[data-ren],[data-del],#saveBtn,#expBtn,#impBtn,#copyBtn,#impGo'); if(!t) return;
   if(t.dataset.spot){ const p=S.spots.find(x=>x.id===t.dataset.spot); if(p) setLoc(p); }
